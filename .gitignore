@@ -1,0 +1,8 @@
+# Librerías (se reinstalan con npm install)
+node_modules/
+
+# Variables de entorno con contraseñas
+.env
+
+# Logs
+npm-debug.log*
