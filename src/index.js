@@ -7,7 +7,7 @@ const app = require('./app');
 const baseDatos = require('./config/baseDatos');
 
 // INICIAR EL SERVIDOR EN EL PUERTO DEFINIDO EN LAS VARIABLES DE ENTORNO
-const puerto = process.env.PORT || 3100;
+const puerto = process.env.PUERTO || 3100;
 
 async function iniciarServidor() {
     try{
