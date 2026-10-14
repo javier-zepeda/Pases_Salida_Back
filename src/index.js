@@ -1,6 +1,12 @@
 // CARGAR VARIABLES DE ENTORNO
 require('dotenv').config();
 
+// SEGURIDAD: el modo prueba nunca debe quedar activo fuera de desarrollo
+if (process.env.CORREO_PRUEBA && process.env.NODE_ENV !== 'development') {
+    console.error('CORREO_PRUEBA solo se permite con NODE_ENV=development. Quítelo del .env.');
+    process.exit(1);
+}
+
 // IMPORTAR EL SERVIDOR EXPRESS
 const app = require('./app');
 // IMPORTAR LA CONEXIÓN A LA BASE DE DATOS
