@@ -65,4 +65,83 @@ async function listarPases(filtros){
     return { total: total, pases: pases };
 }
 
-module.exports = { listarPases };
+// Devolver un pase con todos sus datos, sus adjuntos y su bitacora
+async function obtenerPasePorId(idPase) {
+    const filas = await baseDatos.query(
+        `SELECT p.id_pase,
+            p.numero_orden,
+            p.origen_orden,
+            p.codigo_cliente,
+            p.cliente,
+            p.tipo_vehiculo,
+            p.marca,
+            p.placa,
+            p.chasis,
+            p.piloto,
+            p.supervisor,
+            p.observaciones,
+            p.facturar_orden,
+            p.taller_id,
+            t.nombre AS taller,
+            p.estado_id,
+            e.nombre AS estado,
+            p.creado_por_nombre,
+            CONVERT(VARCHAR(19), p.fecha_creacion, 126)     AS fecha_creacion,
+            p.autorizado_por_nombre,
+            CONVERT(VARCHAR(19), p.fecha_autorizacion, 126) AS fecha_autorizacion,
+            p.anulado_por_nombre,
+            CONVERT(VARCHAR(19), p.fecha_anulacion, 126)    AS fecha_anulacion,
+            p.motivo_anulacion
+        FROM Pases_Taller.pase_salida p
+        LEFT JOIN Pases_Taller.taller t ON t.id_taller = p.taller_id
+        JOIN Pases_Taller.estado_pase e ON e.id_estado = p.estado_id
+        WHERE p.id_pase = :idPase`,
+        { replacements: { idPase: idPase }, type: QueryTypes.SELECT }
+    );
+
+    if (filas.length === 0) {
+        return null;
+    }
+
+    const pase = filas[0];
+    pase.adjuntos = await buscarAdjuntos(idPase);
+    pase.bitacora = await buscarBitacora(idPase);
+
+    return pase;
+}
+
+// Adjuntos activos del pase
+async function buscarAdjuntos(idPase) {
+    const adjuntos = await baseDatos.query(
+        `SELECT id_adjunto,
+            nombre_archivo,
+            ruta,
+            content_type,
+            CONVERT(VARCHAR(19), fecha_subida, 126) AS fecha_subida
+        FROM Pases_Taller.pase_adjunto
+        WHERE pase_id = :idPase
+        AND activo = 1
+        ORDER BY fecha_subida`,
+        { replacements: { idPase: idPase }, type: QueryTypes.SELECT }
+    );
+
+    return adjuntos;
+}
+
+// Historial de acciones sobre el pase
+async function buscarBitacora(idPase) {
+    const registros = await baseDatos.query(
+        `SELECT accion,
+            usuario_nombre,
+            detalle,
+            CONVERT(VARCHAR(19), fecha, 126) AS fecha
+        FROM Pases_Taller.pase_bitacora
+        WHERE pase_id = :idPase
+        ORDER BY fecha, id_bitacora`,
+        { replacements: { idPase: idPase }, type: QueryTypes.SELECT }
+    );
+
+    return registros;
+}
+
+module.exports = { listarPases, obtenerPasePorId };
