@@ -1,0 +1,263 @@
+@api = http://localhost:3100/api
+
+### 1. Crear un pase válido
+POST {{api}}/pases
+Content-Type: application/json
+
+{
+  "tipo_pase_id": 1,
+  "numero_orden": "PRUEBA-001",
+  "cliente": "Cliente de prueba S.A.",
+  "tipo_vehiculo": "Camión",
+  "marca": "hino",
+  "placa": "c123abc",
+  "piloto": "Juan Pérez",
+  "supervisor": "Pedro López",
+  "observaciones": "Pase creado desde REST Client",
+  "taller_id": 1,
+  "facturar_orden": false
+}
+
+### 2. Crear con errores (faltan datos y facturar_orden no es booleano)
+POST {{api}}/pases
+Content-Type: application/json
+
+{
+  "tipo_pase_id": 1,
+  "numero_orden": "   ",
+  "cliente": "Cliente",
+  "taller_id": "abc",
+  "facturar_orden": "si"
+}
+
+### 3. Taller que no existe
+POST {{api}}/pases
+Content-Type: application/json
+
+{
+  "tipo_pase_id": 1,
+  "numero_orden": "PRUEBA-002",
+  "cliente": "Cliente",
+  "tipo_vehiculo": "Pickup",
+  "marca": "JAC",
+  "placa": "P999XYZ",
+  "piloto": "Ana",
+  "supervisor": "Luis",
+  "taller_id": 9999,
+  "facturar_orden": false
+}
+
+### 4. Ver el pase creado (cambie el número por el que devolvió la prueba 1)
+GET {{api}}/pases/66421
+
+### 5. Editar el pase de prueba (cambia placa y piloto)
+PUT {{api}}/pases/66421
+Content-Type: application/json
+
+{
+  "cliente": "Cliente de prueba S.A.",
+  "tipo_vehiculo": "Camión",
+  "marca": "HINO",
+  "placa": "C999ZZZ",
+  "piloto": "María García",
+  "supervisor": "Pedro López",
+  "observaciones": "Pase creado desde REST Client",
+  "facturar_orden": false
+}
+
+### 6. Repetir la misma edición (no debe haber cambios)
+PUT {{api}}/pases/66421
+Content-Type: application/json
+
+{
+  "cliente": "Cliente de prueba S.A.",
+  "tipo_vehiculo": "Camión",
+  "marca": "HINO",
+  "placa": "C999ZZZ",
+  "piloto": "María García",
+  "supervisor": "Pedro López",
+  "observaciones": "Pase creado desde REST Client",
+  "facturar_orden": false
+}
+
+### 7. Intentar cambiar la orden y el taller (se ignoran: "No hubo cambios")
+PUT {{api}}/pases/66421
+Content-Type: application/json
+
+{
+  "numero_orden": "OTRA-ORDEN",
+  "taller_id": 5,
+  "cliente": "Cliente de prueba S.A.",
+  "tipo_vehiculo": "Camión",
+  "marca": "HINO",
+  "placa": "C999ZZZ",
+  "piloto": "María García",
+  "supervisor": "Pedro López",
+  "observaciones": "Pase creado desde REST Client",
+  "facturar_orden": false
+}
+
+### 8. Editar un pase anulado (409)
+PUT {{api}}/pases/58361
+Content-Type: application/json
+
+{
+  "cliente": "X", "tipo_vehiculo": "X", "marca": "X", "placa": "X",
+  "piloto": "X", "supervisor": "X", "facturar_orden": false
+}
+
+### 9. Editar un pase autorizado SIN permiso (403)
+# SOLO con un Receptor: CORREO_PRUEBA=walfred_orozco@codaca.com.gt (taller 1).
+# OJO: con Administrativo/Administrador SÍ lo editaría y cambiaría
+# los datos reales del pase 66410 por "X".
+PUT {{api}}/pases/66410
+Content-Type: application/json
+
+{
+  "cliente": "X", "tipo_vehiculo": "X", "marca": "X", "placa": "X",
+  "piloto": "X", "supervisor": "X", "facturar_orden": false
+}
+
+### 10. Ver el pase editado y su bitácora (registro EDITAR con antes/después)
+GET {{api}}/pases/66421
+
+# =====================================================================
+#  AUTORIZAR Y ANULAR
+#  Permisos: autorizar → Administrador, Administrativo, Cajero
+#            anular    → solo Administrador
+#  Administrador de prueba: CORREO_PRUEBA=edgar_chiriz@codaca.com.gt
+# =====================================================================
+
+### 11. Autorizar el pase de prueba
+POST {{api}}/pases/66421/autorizar
+
+### 12. Autorizar otra vez (409: ya está autorizado)
+POST {{api}}/pases/66421/autorizar
+
+### 13. Autorizar aunque haya órdenes pendientes en Integra
+# Solo aplica cuando Integra encuentre órdenes abiertas y el usuario
+# tenga el permiso 'pases.autorizar_con_pendientes' (Administrador).
+POST {{api}}/pases/66421/autorizar
+Content-Type: application/json
+
+{
+  "autorizar_con_pendientes": true
+}
+
+### 14. Anular sin motivo (400)
+POST {{api}}/pases/66421/anular
+Content-Type: application/json
+
+{}
+
+### 15. Anular con motivo (solo Administrador)
+POST {{api}}/pases/66421/anular
+Content-Type: application/json
+
+{
+  "motivo": "Se ingresó la placa equivocada"
+}
+
+### 16. Ver el pase anulado y su bitácora (CREAR, EDITAR, AUTORIZAR, ANULAR)
+GET {{api}}/pases/66421
+
+# =====================================================================
+#  CATÁLOGOS
+# =====================================================================
+
+### 17. Tipos de pase con sus reglas
+GET {{api}}/catalogos/tipos-pase
+
+### 18. Talleres que puede usar el usuario
+GET {{api}}/catalogos/talleres
+
+### 19. Listar solo un tipo de pase (5 = Traslado de unidad)
+GET {{api}}/pases?tipo=5
+
+# =====================================================================
+#  TIPOS DE PASE
+#  1 Unidad terminada | 2 Prueba en carretera | 3 Vehículo interno
+#  4 Suministros      | 5 Traslado de unidad
+# =====================================================================
+
+### 20. Vehículo interno (sin orden ni cliente; el piloto es el empleado)
+POST {{api}}/pases
+Content-Type: application/json
+
+{
+  "tipo_pase_id": 3,
+  "tipo_vehiculo": "Pickup",
+  "marca": "Toyota",
+  "placa": "P555AAA",
+  "piloto": "Nombre del asesor",
+  "supervisor": "Jefe de taller",
+  "observaciones": "Visita a cliente en zona 10",
+  "taller_id": 1
+}
+
+### 21. Suministros (detalle de artículos obligatorio)
+POST {{api}}/pases
+Content-Type: application/json
+
+{
+  "tipo_pase_id": 4,
+  "tipo_vehiculo": "Pickup",
+  "marca": "Toyota",
+  "placa": "P555AAA",
+  "piloto": "Nombre del empleado",
+  "supervisor": "Jefe de bodega",
+  "taller_id": 1,
+  "detalle": [
+    { "descripcion": "Aceite 15W40", "cantidad": 5, "unidad": "galones" },
+    { "descripcion": "Filtro de aceite", "cantidad": 2 }
+  ]
+}
+
+### 22. Prueba en carretera (lleva orden y cliente; no revisa pendientes)
+POST {{api}}/pases
+Content-Type: application/json
+
+{
+  "tipo_pase_id": 2,
+  "numero_orden": "PRUEBA-PC-001",
+  "cliente": "Cliente de prueba S.A.",
+  "tipo_vehiculo": "Camión",
+  "marca": "HINO",
+  "placa": "C123ABC",
+  "piloto": "Mecánico que hace la prueba",
+  "supervisor": "Jefe de taller",
+  "taller_id": 1,
+  "facturar_orden": false
+}
+
+# =====================================================================
+#  CONSULTA DE ÓRDENES (Integra)
+#  Sin conexión a Integra responde disponible: false.
+#  Con INTEGRA_SIMULADO=true en el .env (y reiniciar con rs):
+#    SIM-001          → orden sin pendientes
+#    SIM-VEH-001      → pendiente del mismo VEHÍCULO (bloquea al autorizar)
+#    SIM-CLI-001      → pendiente del mismo CLIENTE  (solo advierte)
+#    SIM-NOEXISTE     → la orden no existe (404)
+#  Al crear pases con estos números, use el prefijo PRUEBA- para poder
+#  borrarlos después (ej. PRUEBA-SIM-VEH-1).
+# =====================================================================
+
+### 23. Consultar una orden
+GET {{api}}/ordenes/SIM-VEH-CLI-001
+
+### 24. Crear un pase cuya orden tiene pendientes del vehículo
+POST {{api}}/pases
+Content-Type: application/json
+
+{
+  "tipo_pase_id": 1,
+  "numero_orden": "PRUEBA-SIM-VEH-1",
+  "cliente": "TRANSPORTES DE PRUEBA, S.A.",
+  "tipo_vehiculo": "Camión",
+  "marca": "HINO",
+  "placa": "C123ABC",
+  "piloto": "Piloto del cliente",
+  "supervisor": "Jefe de taller",
+  "taller_id": 1,
+  "facturar_orden": true
+}

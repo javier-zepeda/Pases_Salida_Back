@@ -2,6 +2,8 @@ const { Router } = require('express');
 const baseDatos = require('../config/baseDatos');
 const sesionRoutes = require('./sesion.routes');
 const pasesRoutes = require('./pases.routes');
+const catalogosRoutes = require('./catalogos.routes');
+const ordenesRoutes = require('./ordenes.routes');
 const router = Router();
 
 // Prueba de conexión a la base de datos
@@ -19,5 +21,11 @@ router.use('/sesion', sesionRoutes);
 
 // Todo lo de /api/pases/... lo maneja pases.routes.js
 router.use('/pases', pasesRoutes);
+
+// Catálogos para los formularios: /api/catalogos/tipos-pase, /api/catalogos/talleres
+router.use('/catalogos', catalogosRoutes);
+
+// Consulta de órdenes de trabajo en Integra: /api/ordenes/:numero
+router.use('/ordenes', ordenesRoutes);
 
 module.exports = router;

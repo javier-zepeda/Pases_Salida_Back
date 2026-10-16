@@ -4,29 +4,17 @@
    Origen : FAENCASA.Pases.{Sede, Taller, Usuario, Pase_salida}  (producción)
    Destino: Dev-QA.Pases_Taller.*  +  dbo.COTI_tbl_usuarios / COTI_tbl_usuario_rol
 
-   ANTES DE EJECUTAR: cargar una copia de las tablas legadas en Dev-QA, en un
-   esquema temporal llamado Pases_Legacy:
-     1. En SSMS, sobre FAENCASA (producción): clic derecho > Tasks >
-        Generate Scripts > seleccionar las 4 tablas del esquema Pases >
-        Advanced > "Types of data to script" = "Schema and data".
-     2. En el archivo generado reemplazar:
-          USE [FAENCASA]   ->  USE [Dev-QA]
-          [Pases]          ->  [Pases_Legacy]
-     3. Ejecutarlo en Dev-QA.
+   ANTES DE EJECUTAR: cargar una copia de las tablas legadas en Dev-QA, en un esquema temporal llamado Pases_Legacy:     
+      USE [FAENCASA]   ->  USE [Dev-QA]
+      [Pases]          ->  [Pases_Legacy]
 
    Qué hace
-   - Sedes, talleres y pases conservan sus id originales (el número del pase es
-     el que aparece impreso en los PDF ya entregados).
-   - Usuarios: NO se copia Pases.Usuario. Cada usuario activo con correo se
-     busca por email en COTI_tbl_usuarios; si no existe se crea. Se le asigna
-     el rol equivalente a su nivel y sus talleres.
-   - Los nombres de quien creó / autorizó se guardan como texto, de modo que
-     el histórico se conserva aunque el usuario no tenga cuenta.
-   - Adjuntos: se registra la ruta del servidor PHP; las imágenes se suben al
-     Blob en un paso aparte y luego se actualiza 'ruta'.
-
+   - Sedes, talleres y pases conservan sus id originales (el número del pase es el que aparece impreso en los PDF ya entregados).
+   - Usuarios: NO se copia Pases.Usuario. Cada usuario activo con correo se busca por email en COTI_tbl_usuarios; si no existe se crea. 
+     Se le asigna el rol equivalente a su nivel y sus talleres.
+   - Los nombres de quien creó / autorizó se guardan como texto, de modo que el histórico se conserva aunque el usuario no tenga cuenta.
+   - Adjuntos: se registra la ruta del servidor PHP; las imágenes se suben al Blob en un paso aparte y luego se actualiza 'ruta'.
    Todo corre en una sola transacción: si algo falla no queda nada a medias.
-   Se niega a correr si Pases_Taller.pase_salida ya tiene datos.
    ============================================================================= */
 USE [Dev-QA];
 GO

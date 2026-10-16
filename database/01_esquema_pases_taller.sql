@@ -3,21 +3,15 @@
    -----------------------------------------------------------------------------
    Base de datos : Dev-QA
    Esquema       : Pases_Taller
-   Reemplaza a   : FAENCASA.Pases (aplicación PHP)
+   Reemplaza a   : FAENCASA.Pases 
 
    Notas de diseño
-   - Usuarios, roles y permisos NO viven aquí: se usan las tablas compartidas
-     dbo.COTI_tbl_usuarios / COTI_tbl_roles / COTI_tbl_permisos con la
-     aplicación 'PASES_TALLER' (ver 02_seguridad_app_roles_permisos.sql).
+   - Tablas de Usuarios, roles y permisos no vienen aquí se usan las tablas compartidas
+     dbo.COTI_tbl_usuarios / COTI_tbl_roles / COTI_tbl_permisos con la aplicación (ver 02_seguridad_app_roles_permisos.sql).
    - Lo único propio de Pases es a qué taller(es) pertenece cada usuario
      (Pases_Taller.usuario_taller).
-   - Los nombres de quien creó / autorizó / anuló se guardan también como texto
-     (*_nombre) para conservar el histórico de usuarios legados que no tengan
-     cuenta en COTI_tbl_usuarios.
-   - Los estados conservan la numeración del sistema PHP (0, 1, 2) para que la
-     migración sea directa.
-
-   El script es idempotente: se puede ejecutar más de una vez.
+   - Los nombres de quien creó / autorizó / anuló se guardan también como texto     
+   - Los estados conservan la numeración del sistema anterior (0, 1, 2) para que la migración sea directa.
    ============================================================================= */
 USE [Dev-QA];
 GO
@@ -68,8 +62,7 @@ GO
 
 /* ---------------------------------------------------------------------------
    Usuario <-> taller (alcance de datos)
-   Un usuario puede pertenecer a varios talleres. Los usuarios con el permiso
-   'pases.ver_todos' ven todos los talleres sin necesidad de registro aquí.
+   Un usuario puede pertenecer a varios talleres. Los usuarios con el permiso 'pases.ver_todos' ven todos los talleres sin necesidad de registro aquí.
    --------------------------------------------------------------------------- */
 IF OBJECT_ID(N'Pases_Taller.usuario_taller', N'U') IS NULL
 CREATE TABLE Pases_Taller.usuario_taller (
@@ -108,8 +101,6 @@ GO
 
 /* ---------------------------------------------------------------------------
    Pase de salida
-   id_pase es el número impreso en el PDF: la migración conserva los números
-   del sistema PHP (IDENTITY_INSERT) y los nuevos continúan desde el último.
    --------------------------------------------------------------------------- */
 IF OBJECT_ID(N'Pases_Taller.pase_salida', N'U') IS NULL
 CREATE TABLE Pases_Taller.pase_salida (
@@ -176,8 +167,7 @@ GO
 
 /* ---------------------------------------------------------------------------
    Adjuntos del pase (Azure Blob). Permite varios por pase.
-   En la migración, 'ruta' guarda la ruta del servidor PHP; se actualiza al
-   subir las imágenes al Blob.
+   En el sistema anterior se guardaban las iamgenes en un servidor; se actualiza al subir las imágenes al Blob.
    --------------------------------------------------------------------------- */
 IF OBJECT_ID(N'Pases_Taller.pase_adjunto', N'U') IS NULL
 CREATE TABLE Pases_Taller.pase_adjunto (
@@ -201,9 +191,7 @@ GO
 
 /* ---------------------------------------------------------------------------
    Bitácora del pase: quién hizo qué y cuándo.
-   accion: CREAR | EDITAR | AUTORIZAR | ANULAR | IMPRIMIR | ADJUNTAR |
-           VALIDACION_INTEGRA | MIGRACION
-   detalle: JSON (p. ej. órdenes abiertas encontradas al intentar autorizar).
+   accion: CREAR | EDITAR | AUTORIZAR | ANULAR | IMPRIMIR | ADJUNTAR | VALIDACION_INTEGRA | MIGRACION
    --------------------------------------------------------------------------- */
 IF OBJECT_ID(N'Pases_Taller.pase_bitacora', N'U') IS NULL
 CREATE TABLE Pases_Taller.pase_bitacora (

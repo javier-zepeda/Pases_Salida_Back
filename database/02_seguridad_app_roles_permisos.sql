@@ -1,21 +1,14 @@
 /* =============================================================================
-   PASES DE SALIDA - 02. Aplicación, roles y permisos (RBAC compartido)
+   PASES DE SALIDA - 02. Aplicación, roles y permisos
    -----------------------------------------------------------------------------
-   Tablas: dbo.tbl_aplicaciones, dbo.COTI_tbl_roles, dbo.COTI_tbl_permisos,
-           dbo.COTI_tbl_rol_permiso
+   Tablas ya creadas que se modifican los registros: dbo.tbl_aplicaciones, dbo.COTI_tbl_roles, dbo.COTI_tbl_permisos,dbo.COTI_tbl_rol_permiso
 
-   - La aplicación se registra con id 5, código 'PASES_TALLER'.
-     Si ya existe por código, no se toca. Si el id 5 lo ocupa otra aplicación,
-     se registra con el siguiente id disponible y se avisa.
-   - El código (PASES_TALLER) es lo que deben usar el back y el front
-     (?app=PASES_TALLER), NO el id, porque en QA/producción el id puede variar.
-   - Ningún rol queda como 'es_defecto_app': nadie entra a Pases sin que un
-     administrador le asigne un rol.
+   - La aplicación se registra con id 5, código 'PASES_TALLER' Si ya existe por código, no se toca        
+   - Ningún rol queda como 'es_defecto_app': nadie entra a Pases sin que un administrador le asigne un rol.
 
    Equivalencia con los niveles del sistema PHP (Pases.Usuario.nivel_usuario):
        1 Administrador | 2 Jefe de Taller | 3 Administrativo | 4 Receptor | 5 Cajero
 
-   El script es idempotente: se puede ejecutar más de una vez.
    ============================================================================= */
 USE [Dev-QA];
 GO
