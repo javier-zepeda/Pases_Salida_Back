@@ -8,13 +8,17 @@ const {
     crearNuevoPase,
     editarPaseExistente,
     autorizarPaseExistente,
-    anularPaseExistente
+    anularPaseExistente,
+    imprimirPase
 } = require('../controllers/pases.controller');
 
 const router = Router();
 
 // GET /api/pases                → listado con filtros y paginación
 router.get('/', autenticar, requierePermiso('pases.ver'), obtenerPases);
+
+// GET /api/pases/:id/pdf        → PDF del pase para imprimir (autorizados y anulados)
+router.get('/:id/pdf', autenticar, requierePermiso('pases.imprimir'), cargarPase, imprimirPase);
 
 // GET /api/pases/:id            → detalle de un pase
 router.get('/:id', autenticar, requierePermiso('pases.ver'), cargarPase, obtenerPase);

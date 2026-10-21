@@ -10,6 +10,7 @@ const { obtenerTipoPase } = require('../services/tipos.service');
 const { consultarOrden } = require('../services/integra.service');
 const { revisarOrdenesPendientes } = require('../services/pendientes.service');
 const { validarDatosPase } = require('../validators/pase.validator');
+const { generarPdfPase, formatearNumeroPase } = require('../services/pdfPase.service');
 const { obtenerTalleresPermitidos, puedeVerTaller } = require('../helpers/alcance.helper');
 
 const TAMANO_PAGINA_POR_DEFECTO = 20;
@@ -416,11 +417,39 @@ async function anularPaseExistente(req, res) {
   }
 }
 
+// GET /api/pases/:id/pdf
+//
+// Devuelve el PDF del pase para imprimirlo solo se imprimen pases Autorizados (1) y Anulados (2). Un pase Creado (0) no se imprime para que nadie lo presente
+async function imprimirPase(req, res) {
+  try {
+    const pase = req.pase;
+
+    if (pase.estado_id === 0) {
+      return res.status(409).json({ mensaje: 'El pase debe estar autorizado para poder imprimirlo' });
+    }
+
+    const pdf = await generarPdfPase(pase);
+    const nombreArchivo = 'Pase No ' + formatearNumeroPase(pase.id_pase) + '.pdf';
+
+    // "inline": el navegador lo abre en lugar de descargarlo
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="' + nombreArchivo + '"',
+      'Content-Length': pdf.length
+    });
+    res.send(pdf);
+  } catch (error) {
+    console.error('Error al generar el PDF del pase:', error.message);
+    res.status(500).json({ mensaje: 'Error al generar el PDF del pase de salida' });
+  }
+}
+
 module.exports = {
   obtenerPases,
   obtenerPase,
   crearNuevoPase,
   editarPaseExistente,
   autorizarPaseExistente,
-  anularPaseExistente
+  anularPaseExistente,
+  imprimirPase
 };
