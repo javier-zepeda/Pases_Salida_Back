@@ -261,6 +261,13 @@ async function editarPaseExistente(req, res) {
 
     // 4. Guardar solo si algo cambió
     const cambios = await editarPase(paseActual, datos, req.usuario);
+
+    if (cambios === null) {
+      return res.status(409).json({
+        mensaje: 'El pase cambió de estado mientras lo editaba (otro usuario lo autorizó o anuló). Actualice la pantalla.'
+      });
+    }
+
     const camposModificados = Object.keys(cambios);
 
     if (camposModificados.length === 0) {

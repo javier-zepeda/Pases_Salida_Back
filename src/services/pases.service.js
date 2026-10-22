@@ -282,13 +282,9 @@ const CAMPOS_EDITABLES = [
 ];
 
 // Edita un pase y registra en la bitácora qué campos cambiaron.
-//
-// paseActual  → el pase como está hoy (req.pase)
-// datosNuevos → lo que devolvió validarDatosPase
-// usuario     → req.usuario (quién edita)
-//
 // Devuelve un objeto con los cambios: { placa: { antes: 'A', despues: 'B' }, ... }
 // Si no cambió nada, devuelve un objeto vacío y no toca la base de datos.
+// El UPDATE solo modifica el pase si TODAVÍA tiene el estado con el que se cargó.
 async function editarPase(paseActual, datosNuevos, usuario) {
     // 1. Comparar campo por campo
     const cambios = {};
@@ -318,9 +314,9 @@ async function editarPase(paseActual, datosNuevos, usuario) {
     }
 
     // 3. Guardar el pase y su bitácora juntos
-    await baseDatos.transaction(async (transaccion) => {
+    const guardado = await baseDatos.transaction(async (transaccion) => {
 
-        await baseDatos.query(
+        const filas = await baseDatos.query(
             `UPDATE Pases_Taller.pase_salida
             SET codigo_cliente     = :codigo_cliente,
                 cliente            = :cliente,
@@ -334,7 +330,9 @@ async function editarPase(paseActual, datosNuevos, usuario) {
                 facturar_orden     = :facturar_orden,
                 modificado_por_id  = :usuario_id,
                 fecha_modificacion = SYSDATETIME()
-            WHERE id_pase = :id_pase`,
+            OUTPUT INSERTED.id_pase
+            WHERE id_pase = :id_pase
+              AND estado_id = :estado_al_cargar`,
         {
             replacements: {
                 codigo_cliente: datosNuevos.codigo_cliente,
@@ -348,10 +346,17 @@ async function editarPase(paseActual, datosNuevos, usuario) {
                 observaciones: datosNuevos.observaciones,
                 facturar_orden: datosNuevos.facturar_orden,
                 usuario_id: usuario.id,
-                id_pase: paseActual.id_pase
+                id_pase: paseActual.id_pase,
+                estado_al_cargar: paseActual.estado_id
             },
+            type: QueryTypes.SELECT,
             transaction: transaccion
         });
+
+        // Ninguna fila modificada: el pase cambió de estado mientras se editaba
+        if (filas.length === 0) {
+            return false;
+        }
 
         if (cambioElDetalle) {
             await borrarDetalleSuministros(transaccion, paseActual.id_pase);
@@ -361,8 +366,12 @@ async function editarPase(paseActual, datosNuevos, usuario) {
         await registrarEnBitacora(transaccion, paseActual.id_pase, 'EDITAR', usuario, {
             cambios: cambios
         });
+        return true;
     });
 
+    if (!guardado) {
+        return null;
+    }
     return cambios;
 }
 
