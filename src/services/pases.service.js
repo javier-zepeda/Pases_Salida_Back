@@ -84,6 +84,7 @@ async function obtenerPasePorId(idPase) {
             tp.requiere_orden,
             tp.valida_pendientes,
             tp.lleva_detalle,
+            tp.lleva_destino,
             p.numero_orden,
             p.origen_orden,
             p.codigo_cliente,
@@ -98,6 +99,8 @@ async function obtenerPasePorId(idPase) {
             p.facturar_orden,
             p.taller_id,
             t.nombre AS taller,
+            p.taller_destino_id,
+            td.nombre AS taller_destino,
             p.estado_id,
             e.nombre AS estado,
             p.creado_por_nombre,
@@ -109,6 +112,7 @@ async function obtenerPasePorId(idPase) {
             p.motivo_anulacion
         FROM Pases_Taller.pase_salida p
         LEFT JOIN Pases_Taller.taller t ON t.id_taller = p.taller_id
+        LEFT JOIN Pases_Taller.taller td ON td.id_taller = p.taller_destino_id
         JOIN Pases_Taller.estado_pase e ON e.id_estado = p.estado_id
         JOIN Pases_Taller.tipo_pase tp ON tp.id_tipo = p.tipo_pase_id
         WHERE p.id_pase = :idPase`,
@@ -148,13 +152,17 @@ async function buscarDetalleSuministros(idPase) {
     return lineas;
 }
 
-// Adjuntos activos del pase
+// Adjuntos activos del pase.
+// La ruta en Azure no se manda al navegador; la imagen se pide con
+// GET /api/pases/:id/adjuntos/:idAdjunto.
+// del_sistema_anterior = 1 → migrado del PHP; la imagen no se pasó a Azure.
 async function buscarAdjuntos(idPase) {
     const adjuntos = await baseDatos.query(
         `SELECT id_adjunto,
             nombre_archivo,
-            ruta,
             content_type,
+            tamano_bytes,
+            CAST(CASE WHEN ruta LIKE 'views/%' THEN 1 ELSE 0 END AS BIT) AS del_sistema_anterior,
             CONVERT(VARCHAR(19), fecha_subida, 126) AS fecha_subida
         FROM Pases_Taller.pase_adjunto
         WHERE pase_id = :idPase
@@ -209,14 +217,14 @@ async function crearPase(datos, usuario, autorizarAlCrear, ordenesPendientes) {
             `INSERT INTO Pases_Taller.pase_salida (
                 tipo_pase_id, numero_orden, origen_orden, codigo_cliente, cliente, tipo_vehiculo,
                 marca, placa, chasis, piloto, supervisor, observaciones,
-                facturar_orden, taller_id, estado_id,
+                facturar_orden, taller_id, taller_destino_id, estado_id,
                 creado_por_id, creado_por_nombre,
                 autorizado_por_id, autorizado_por_nombre, fecha_autorizacion)
             OUTPUT INSERTED.id_pase
             VALUES (
                 :tipo_pase_id, :numero_orden, :origen_orden, :codigo_cliente, :cliente, :tipo_vehiculo,
                 :marca, :placa, :chasis, :piloto, :supervisor, :observaciones,
-                :facturar_orden, :taller_id, :estado_id,
+                :facturar_orden, :taller_id, :taller_destino_id, :estado_id,
                 :creado_por_id, :creado_por_nombre,
                 :autorizado_por_id, :autorizado_por_nombre,
                 CASE WHEN :estado_id = 1 THEN SYSDATETIME() ELSE NULL END)`,
@@ -236,6 +244,7 @@ async function crearPase(datos, usuario, autorizarAlCrear, ordenesPendientes) {
                 observaciones: datos.observaciones,
                 facturar_orden: datos.facturar_orden,
                 taller_id: datos.taller_id,
+                taller_destino_id: datos.taller_destino_id,
                 estado_id: estadoInicial,
                 creado_por_id: usuario.id,
                 creado_por_nombre: usuario.nombre,
@@ -308,6 +317,13 @@ async function editarPase(paseActual, datosNuevos, usuario) {
         cambios.detalle = { antes: paseActual.detalle, despues: datosNuevos.detalle };
     }
 
+    // El taller de destino se compara por id, pero en la bitácora se guarda
+    // el nombre ("TALLER COBAN → TALLER CENTRAL"), que es lo que se lee.
+    // datosNuevos.taller_destino lo llena el controlador con el nombre.
+    if (paseActual.taller_destino_id !== datosNuevos.taller_destino_id) {
+        cambios.taller_destino = { antes: paseActual.taller_destino, despues: datosNuevos.taller_destino };
+    }
+
     // 2. Si no cambió nada, no hay nada que guardar
     if (Object.keys(cambios).length === 0) {
         return cambios;
@@ -328,6 +344,7 @@ async function editarPase(paseActual, datosNuevos, usuario) {
                 supervisor         = :supervisor,
                 observaciones      = :observaciones,
                 facturar_orden     = :facturar_orden,
+                taller_destino_id  = :taller_destino_id,
                 modificado_por_id  = :usuario_id,
                 fecha_modificacion = SYSDATETIME()
             OUTPUT INSERTED.id_pase
@@ -345,6 +362,7 @@ async function editarPase(paseActual, datosNuevos, usuario) {
                 supervisor: datosNuevos.supervisor,
                 observaciones: datosNuevos.observaciones,
                 facturar_orden: datosNuevos.facturar_orden,
+                taller_destino_id: datosNuevos.taller_destino_id,
                 usuario_id: usuario.id,
                 id_pase: paseActual.id_pase,
                 estado_al_cargar: paseActual.estado_id
@@ -519,5 +537,6 @@ module.exports = {
     crearPase,
     editarPase,
     autorizarPase,
-    anularPase
+    anularPase,
+    registrarEnBitacora
 };

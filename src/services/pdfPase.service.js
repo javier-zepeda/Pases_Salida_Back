@@ -216,6 +216,14 @@ function dibujarVehiculo(hoja) {
     { etiqueta: 'Marca', valor: pase.marca, ancho: 0.25 },
     { etiqueta: 'Chasis', valor: pase.chasis, ancho: 0.30 }
   ]);
+
+  // Traslado: de qué taller sale y a cuál va
+  if (pase.lleva_destino) {
+    dibujarFilaDeCampos(hoja, [
+      { etiqueta: 'Sale de', valor: pase.taller, ancho: 0.45 },
+      { etiqueta: 'Taller destino', valor: pase.taller_destino || 'No registrado', ancho: 0.55 }
+    ]);
+  }
 }
 
 // Tabla de artículos (solo los tipos que llevan detalle, ej. suministros)

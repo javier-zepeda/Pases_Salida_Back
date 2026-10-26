@@ -6,11 +6,12 @@ const baseDatos = require('../config/baseDatos');
 //   requiere_orden    → el número de orden y el cliente son obligatorios
 //   valida_pendientes → se revisan órdenes sin facturar en Integra
 //   lleva_detalle     → lleva lista de artículos (suministros)
+//   lleva_destino     → pide el taller de destino (traslado)
 
 // Lista los tipos de pase activos (para el formulario y los filtros)
 async function listarTiposPase() {
     const tipos = await baseDatos.query(
-        `SELECT id_tipo, codigo, nombre, requiere_orden, valida_pendientes, lleva_detalle
+        `SELECT id_tipo, codigo, nombre, requiere_orden, valida_pendientes, lleva_detalle, lleva_destino
          FROM Pases_Taller.tipo_pase
          WHERE activo = 1
          ORDER BY id_tipo`,
@@ -23,7 +24,7 @@ async function listarTiposPase() {
 // Devuelve un tipo de pase por su id, o null si no existe
 async function obtenerTipoPase(idTipo) {
     const filas = await baseDatos.query(
-        `SELECT id_tipo, codigo, nombre, requiere_orden, valida_pendientes, lleva_detalle, activo
+        `SELECT id_tipo, codigo, nombre, requiere_orden, valida_pendientes, lleva_detalle, lleva_destino, activo
          FROM Pases_Taller.tipo_pase
          WHERE id_tipo = :idTipo`,
         { replacements: { idTipo: idTipo }, type: QueryTypes.SELECT }

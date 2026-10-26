@@ -34,4 +34,17 @@ async function obtenerMisTalleres(req, res) {
   }
 }
 
-module.exports = { obtenerTiposPase, obtenerMisTalleres };
+// GET /api/catalogos/talleres-destino
+// TODOS los talleres activos (no solo los del usuario): en un traslado la
+// unidad se envía a otro taller, que normalmente no es uno de los suyos.
+async function obtenerTalleresDestino(req, res) {
+  try {
+    const talleres = await listarTalleresActivos(null);
+    res.json(talleres);
+  } catch (error) {
+    console.error('Error al listar talleres de destino:', error.message);
+    res.status(500).json({ mensaje: 'Error al obtener los talleres' });
+  }
+}
+
+module.exports = { obtenerTiposPase, obtenerMisTalleres, obtenerTalleresDestino };

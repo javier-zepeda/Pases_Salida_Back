@@ -4,6 +4,8 @@
 // Las reglas cambian según el tipo de pase (tabla Pases_Taller.tipo_pase):
 //   - requiere_orden = 1 → número de orden y cliente obligatorios
 //   - lleva_detalle  = 1 → lista de artículos obligatoria (suministros)
+//   - lleva_destino  = 1 → taller de destino obligatorio y distinto del de salida (traslado)
+//     (que el taller exista y esté activo lo revisa el controlador en la base)
 //
 // Recibe:
 //   cuerpo    → lo que mandó el navegador
@@ -32,6 +34,7 @@ function validarDatosPase(cuerpo, tipoPase) {
         supervisor:     limpiarTexto(cuerpo.supervisor),
         observaciones:  limpiarTexto(cuerpo.observaciones),
         taller_id:      Number(cuerpo.taller_id),
+        taller_destino_id: null,
         facturar_orden: cuerpo.facturar_orden,
         detalle:        []
     };
@@ -61,6 +64,18 @@ function validarDatosPase(cuerpo, tipoPase) {
     // 5. Taller: número entero positivo
     if (!Number.isInteger(datos.taller_id) || datos.taller_id < 1) {
         errores.push('Debe seleccionar un taller');
+    }
+
+    // 5b. Taller de destino: solo en los tipos que lo piden (traslado).
+    //     En los demás se guarda NULL aunque el navegador mande algo.
+    if (tipoPase.lleva_destino) {
+        datos.taller_destino_id = Number(cuerpo.taller_destino_id);
+
+        if (!Number.isInteger(datos.taller_destino_id) || datos.taller_destino_id < 1) {
+            errores.push('Debe seleccionar el taller de destino');
+        } else if (datos.taller_destino_id === datos.taller_id) {
+            errores.push('El taller de destino debe ser distinto del taller de salida');
+        }
     }
 
     // 6. Facturar orden: debe ser true o false (no "si", no 1).
@@ -172,4 +187,4 @@ function tieneMaximoDosDecimales(numero) {
     return Math.abs(multiplicado - numero * 100) < 0.000001;
 }
 
-module.exports = { validarDatosPase };
+module.exports = { validarDatosPase, limpiarTexto, validarObligatorio, validarLargo, vacioANulo };

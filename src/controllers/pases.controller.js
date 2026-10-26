@@ -12,6 +12,7 @@ const { revisarOrdenesPendientes } = require('../services/pendientes.service');
 const { validarDatosPase } = require('../validators/pase.validator');
 const { generarPdfPase, formatearNumeroPase } = require('../services/pdfPase.service');
 const { obtenerTalleresPermitidos, puedeVerTaller } = require('../helpers/alcance.helper');
+const { revisarSiPuedeModificar } = require('../helpers/edicion.helper');
 
 const TAMANO_PAGINA_POR_DEFECTO = 20;
 const TAMANO_PAGINA_MAXIMO = 100;
@@ -118,7 +119,7 @@ function obtenerCuerpo(req) {
 //   3. Taller: debe existir, estar activo y ser del usuario.
 //   4. Si el tipo lleva orden: comprobar en Integra que la orden exista.
 //   5. Si el tipo revisa pendientes: buscar órdenes sin facturar.
-//   6. Regla del cajero: autorizar al crear (si no hay pendientes del vehículo).
+//   6. Regla del cajero: autorizar al crear (si no hay órdenes pendientes).
 //   7. Guardar.
 async function crearNuevoPase(req, res) {
   try {
@@ -155,8 +156,17 @@ async function crearNuevoPase(req, res) {
       return res.status(403).json({ mensaje: 'No puede crear pases para un taller que no tiene asignado' });
     }
 
-    // 4. Origen de la orden: si Integra responde, la orden debe existir.
-    //    Si Integra no está disponible, se acepta lo que escribió el usuario.
+    // 3b. Taller de destino (traslado): puede ser cualquier taller activo
+    const errorDestino = await revisarTallerDestino(datos, null);
+
+    if (errorDestino !== null) {
+      return res.status(400).json({ mensaje: errorDestino });
+    }
+
+    // 4. Orden de trabajo: en los tipos que la llevan, DEBE existir en Integra.
+    //    Si Integra no responde, no se crea el pase: el usuario lo intenta
+    //    más tarde (no se aceptan órdenes escritas a mano sin verificar).
+    //    En los demás tipos la orden es opcional y queda como 'MANUAL'.
     datos.origen_orden = null;
 
     if (datos.numero_orden !== null) {
@@ -166,32 +176,35 @@ async function crearNuevoPase(req, res) {
     if (tipoPase.requiere_orden) {
       const consulta = await consultarOrden(datos.numero_orden);
 
-      if (consulta.disponible && consulta.orden === null) {
+      if (!consulta.disponible) {
+        return res.status(503).json({
+          mensaje: 'No se pudo verificar la orden en Integra. Intente de nuevo en unos minutos.'
+        });
+      }
+      if (consulta.orden === null) {
         return res.status(400).json({ mensaje: 'La orden ' + datos.numero_orden + ' no existe en Integra' });
       }
-      if (consulta.disponible) {
-        datos.origen_orden = 'INTEGRA';
-      }
+      datos.origen_orden = 'INTEGRA';
     }
 
     // 5. Órdenes abiertas sin facturar (solo en los tipos que lo revisan)
-    let revision = { disponible: false, todas: [], bloquean: [], advertencias: [] };
+    let revision = { disponible: false, todas: [], hayPendientes: false };
 
     if (tipoPase.valida_pendientes) {
       revision = await revisarOrdenesPendientes(datos);
     }
 
     // 6. Regla del sistema anterior: si quien crea tiene el permiso
-    //    'pases.autorizar_al_crear' (cajero) y la orden se factura,
+    //    'pases.autorizar_al_crear' (Cajero Receptor) y la orden se factura,
     //    el pase queda autorizado de una vez...
-    //    ...salvo que el vehículo tenga otras órdenes sin facturar:
-    //    entonces se crea, pero queda en estado Creado para revisión.
+    //    ...salvo que el vehículo o el cliente tenga órdenes sin facturar:
+    //    entonces se crea, pero queda en estado Creado (solo un Administrador
+    //    puede autorizarlo con pendientes).
     const tienePermisoAutorizarAlCrear = req.usuario.permisos.includes('pases.autorizar_al_crear');
     const quiereAutorizarAlCrear = datos.facturar_orden && tienePermisoAutorizarAlCrear;
-    const hayPendientesDelVehiculo = revision.bloquean.length > 0;
 
     let autorizarAlCrear = false;
-    if (quiereAutorizarAlCrear && !hayPendientesDelVehiculo) {
+    if (quiereAutorizarAlCrear && !revision.hayPendientes) {
       autorizarAlCrear = true;
     }
 
@@ -202,8 +215,8 @@ async function crearNuevoPase(req, res) {
     if (autorizarAlCrear) {
       mensaje = 'Pase de salida creado y autorizado';
     }
-    if (quiereAutorizarAlCrear && hayPendientesDelVehiculo) {
-      mensaje = 'Pase de salida creado, pero NO se autorizó: el vehículo tiene otras órdenes sin facturar';
+    if (quiereAutorizarAlCrear && revision.hayPendientes) {
+      mensaje = 'Pase de salida creado, pero NO se autorizó: el vehículo o el cliente tiene órdenes sin facturar';
     }
 
     res.status(201).json({
@@ -218,6 +231,34 @@ async function crearNuevoPase(req, res) {
   }
 }
 
+// Revisa en la base el taller de destino y deja su nombre en datos.taller_destino
+// (para la bitácora). Devuelve el mensaje de error, o null si está bien.
+//
+// paseActual → null al crear; al editar, el pase guardado. Si al editar el
+//              destino no cambió, no se vuelve a revisar (por si ese taller
+//              se desactivó después de crear el pase).
+async function revisarTallerDestino(datos, paseActual) {
+  datos.taller_destino = null;
+
+  if (datos.taller_destino_id === null) {
+    return null;
+  }
+
+  if (paseActual !== null && paseActual.taller_destino_id === datos.taller_destino_id) {
+    datos.taller_destino = paseActual.taller_destino;
+    return null;
+  }
+
+  const destino = await obtenerTaller(datos.taller_destino_id);
+
+  if (destino === null || !destino.activo) {
+    return 'El taller de destino no existe o está inactivo';
+  }
+
+  datos.taller_destino = destino.nombre;
+  return null;
+}
+
 // PUT /api/pases/:id
 // El middleware cargarPase ya dejó el pase en req.pase.
 async function editarPaseExistente(req, res) {
@@ -225,14 +266,10 @@ async function editarPaseExistente(req, res) {
     const paseActual = req.pase;
 
     // 1. Reglas según el estado del pase
-    if (paseActual.estado_id === 2) {
-      return res.status(409).json({ mensaje: 'Un pase anulado no se puede editar' });
-    }
+    const impedimento = revisarSiPuedeModificar(req.usuario, paseActual);
 
-    const puedeEditarAutorizados = req.usuario.permisos.includes('pases.editar_autorizado');
-
-    if (paseActual.estado_id === 1 && !puedeEditarAutorizados) {
-      return res.status(403).json({ mensaje: 'No tiene permiso para editar pases ya autorizados' });
+    if (impedimento !== null) {
+      return res.status(impedimento.estado).json({ mensaje: impedimento.mensaje });
     }
 
     // 2. Tipo de pase, número de orden y taller no se cambian:
@@ -245,11 +282,23 @@ async function editarPaseExistente(req, res) {
       taller_id: paseActual.taller_id
     };
 
+    // En los tipos con orden, el cliente y el vehículo vienen de Integra y
+    // con ellos se buscan las órdenes pendientes: tampoco se cambian (si se
+    // pudieran cambiar, alguien podría esquivar el bloqueo por pendientes).
+    // En los tipos sin orden se escriben a mano y sí se pueden corregir.
+    if (paseActual.requiere_orden) {
+      cuerpoParaValidar.cliente = paseActual.cliente;
+      cuerpoParaValidar.codigo_cliente = paseActual.codigo_cliente;
+      cuerpoParaValidar.placa = paseActual.placa;
+      cuerpoParaValidar.chasis = paseActual.chasis;
+    }
+
     // Las reglas del tipo vienen con el pase (columnas de tipo_pase)
     const tipoPase = {
       id_tipo: paseActual.tipo_pase_id,
       requiere_orden: paseActual.requiere_orden,
-      lleva_detalle: paseActual.lleva_detalle
+      lleva_detalle: paseActual.lleva_detalle,
+      lleva_destino: paseActual.lleva_destino
     };
 
     // 3. Mismas reglas de validación que al crear
@@ -257,6 +306,13 @@ async function editarPaseExistente(req, res) {
 
     if (errores.length > 0) {
       return res.status(400).json({ mensaje: 'Revise los datos del pase', errores: errores });
+    }
+
+    // El taller de destino sí se puede corregir (el de salida no)
+    const errorDestino = await revisarTallerDestino(datos, paseActual);
+
+    if (errorDestino !== null) {
+      return res.status(400).json({ mensaje: errorDestino });
     }
 
     // 4. Guardar solo si algo cambió
@@ -290,12 +346,11 @@ async function editarPaseExistente(req, res) {
 //
 // Pasos:
 //   1. Solo se autorizan pases en estado Creado (0).
-//   2. Si el tipo de pase revisa pendientes, se consulta Integra:
-//        - órdenes del MISMO VEHÍCULO sin facturar → bloquean:
-//            sin el permiso 'pases.autorizar_con_pendientes' → no se autoriza.
-//            con el permiso → debe confirmarlo con autorizar_con_pendientes: true
-//            (el front muestra las órdenes y pregunta "¿autorizar de todas formas?").
-//        - órdenes del MISMO CLIENTE (otros vehículos) → solo se advierten.
+//   2. Si el tipo de pase revisa pendientes, se consulta Integra.
+//      Órdenes sin facturar del MISMO VEHÍCULO o del MISMO CLIENTE → bloquean:
+//        sin el permiso 'pases.autorizar_con_pendientes' → no se autoriza.
+//        con el permiso (Administrador) → debe confirmarlo con autorizar_con_pendientes: true
+//        (el front muestra las órdenes y pregunta "¿autorizar de todas formas?").
 //   3. Se autoriza y se guarda en la bitácora el resultado de la revisión.
 async function autorizarPaseExistente(req, res) {
   try {
@@ -310,20 +365,18 @@ async function autorizarPaseExistente(req, res) {
     }
 
     // 2. Revisión de órdenes pendientes (solo en los tipos que lo revisan)
-    let revision = { disponible: false, todas: [], bloquean: [], advertencias: [] };
+    let revision = { disponible: false, todas: [], hayPendientes: false };
 
     if (pase.valida_pendientes) {
       revision = await revisarOrdenesPendientes(pase);
     }
 
-    const hayPendientesDelVehiculo = revision.bloquean.length > 0;
-
-    if (hayPendientesDelVehiculo) {
+    if (revision.hayPendientes) {
       const puedeAutorizarConPendientes = req.usuario.permisos.includes('pases.autorizar_con_pendientes');
 
       if (!puedeAutorizarConPendientes) {
         return res.status(409).json({
-          mensaje: 'No se puede autorizar: el vehículo tiene otras órdenes abiertas sin facturar',
+          mensaje: 'No se puede autorizar: el vehículo o el cliente tiene órdenes sin facturar. Solo un Administrador puede autorizarlo.',
           ordenes_pendientes: revision.todas
         });
       }
@@ -333,7 +386,7 @@ async function autorizarPaseExistente(req, res) {
 
       if (!confirmoPendientes) {
         return res.status(409).json({
-          mensaje: 'El vehículo tiene otras órdenes sin facturar. Confirme si desea autorizar de todas formas.',
+          mensaje: 'El vehículo o el cliente tiene órdenes sin facturar. Confirme si desea autorizar de todas formas.',
           requiere_confirmacion: true,
           ordenes_pendientes: revision.todas
         });
@@ -352,7 +405,7 @@ async function autorizarPaseExistente(req, res) {
     const detalleBitacora = {
       validacion_integra: resultadoValidacion,
       ordenes_pendientes: revision.todas,
-      autorizado_con_pendientes: hayPendientesDelVehiculo
+      autorizado_con_pendientes: revision.hayPendientes
     };
 
     const autorizado = await autorizarPase(pase.id_pase, req.usuario, detalleBitacora);
@@ -363,11 +416,9 @@ async function autorizarPaseExistente(req, res) {
       });
     }
 
-    // Las órdenes del mismo cliente no bloquean, pero se devuelven para mostrarlas
     res.json({
       mensaje: 'Pase de salida autorizado',
-      id_pase: pase.id_pase,
-      advertencias: revision.advertencias
+      id_pase: pase.id_pase
     });
   } catch (error) {
     console.error('Error al autorizar el pase:', error.message);
