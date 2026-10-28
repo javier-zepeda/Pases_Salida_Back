@@ -39,4 +39,36 @@ function validarSede(cuerpo) {
     return { errores: errores, datos: datos };
 }
 
-module.exports = { validarSede };
+// Mismos largos que las columnas de la tabla Pases_Taller.taller
+const LARGO_CODIGO = 10;
+
+// Cuerpo esperado: { nombre: 'TALLER ZONA 7', codigo: 'Z07', sede_id: 1 }
+// (que la sede exista y esté activa lo revisa el controlador en la base)
+function validarTaller(cuerpo) {
+    const errores = [];
+
+    // 1. Limpiar. Nombre y código van en mayúsculas, igual que los que ya existen.
+    const datos = {
+        nombre: limpiarTexto(cuerpo.nombre).toUpperCase(),
+        codigo: limpiarTexto(cuerpo.codigo).toUpperCase(),
+        sede_id: Number(cuerpo.sede_id)
+    };
+
+    // 2. Obligatorios y largos
+    validarObligatorio(errores, datos.nombre, 'nombre', LARGO_NOMBRE);
+    validarObligatorio(errores, datos.codigo, 'código', LARGO_CODIGO);
+
+    // 3. El código solo lleva letras y números (ej. CEN, Z18): se usa para buscar en Integra
+    if (datos.codigo !== '' && !/^[A-Z0-9]+$/.test(datos.codigo)) {
+        errores.push('El código solo puede tener letras y números, sin espacios');
+    }
+
+    // 4. Sede: número entero positivo
+    if (!Number.isInteger(datos.sede_id) || datos.sede_id < 1) {
+        errores.push('Debe seleccionar la sede');
+    }
+
+    return { errores: errores, datos: datos };
+}
+
+module.exports = { validarSede, validarTaller };

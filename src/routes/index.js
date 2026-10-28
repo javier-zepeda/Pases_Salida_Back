@@ -4,6 +4,8 @@ const sesionRoutes = require('./sesion.routes');
 const pasesRoutes = require('./pases.routes');
 const catalogosRoutes = require('./catalogos.routes');
 const ordenesRoutes = require('./ordenes.routes');
+const mantenimientoRoutes = require('./mantenimiento.routes');
+const inicioRoutes = require('./inicio.routes');
 const router = Router();
 
 // Prueba de conexión a la base de datos
@@ -27,5 +29,11 @@ router.use('/catalogos', catalogosRoutes);
 
 // Consulta de órdenes de trabajo en Integra: /api/ordenes/:numero
 router.use('/ordenes', ordenesRoutes);
+
+// Mantenimientos de sedes y talleres: /api/mantenimiento/sedes, /api/mantenimiento/talleres
+router.use('/mantenimiento', mantenimientoRoutes);
+
+// Página de Inicio: /api/inicio/resumen
+router.use('/inicio', inicioRoutes);
 
 module.exports = router;
